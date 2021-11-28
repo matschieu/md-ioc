@@ -6,10 +6,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.inject.Singleton;
+
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.github.matschieu.ioc.core.exceptions.InvocationException;
 
 /**
  *
@@ -26,7 +30,7 @@ public class Container {
 
 	private final Map<Class<?>, Class<?>> applicationScope = new HashMap<>();
 
-	// TODO manage singleton
+	private final Map<Class<?>, Object> singletonInstance = new HashMap<>();
 
 	/**
 	 *
@@ -121,6 +125,38 @@ public class Container {
 	 */
 	public Map<Class<?>, Class<?>> getApplicationScope() {
 		return new HashMap<>(this.applicationScope);
+	}
+
+	/**
+	 *
+	 * @param clazz
+	 * @return T
+	 * @throws InvocationException
+	 */
+	@SuppressWarnings("unchecked")
+	public <T> T getObjectInstance(final Class<T> clazz) throws InvocationException {
+		final T instance;
+
+		if (clazz.getDeclaredAnnotation(Singleton.class) != null) {
+			if (this.singletonInstance.containsKey(clazz)) {
+				instance = (T)this.singletonInstance.get(clazz);
+			} else {
+				try {
+					instance = clazz.getDeclaredConstructor().newInstance();
+					this.singletonInstance.put(clazz, instance);
+				} catch (final Exception e) {
+					throw new InvocationException(e);
+				}
+			}
+		} else {
+			try {
+				instance = clazz.getDeclaredConstructor().newInstance();
+			} catch (final Exception e) {
+				throw new InvocationException(e);
+			}
+		}
+
+		return instance;
 	}
 
 	/**

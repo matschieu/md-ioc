@@ -233,11 +233,7 @@ public class Injector {
 			}
 
 			if (foundImplementation != null) {
-				try {
-					instance = foundImplementation.getDeclaredConstructor().newInstance();
-				} catch (final Exception e) {
-					throw new InvocationException(e);
-				}
+				instance = this.container.getObjectInstance(foundImplementation);
 			}
 		}
 
