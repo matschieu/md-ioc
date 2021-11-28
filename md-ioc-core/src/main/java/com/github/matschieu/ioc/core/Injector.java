@@ -2,7 +2,9 @@ package com.github.matschieu.ioc.core;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,16 +43,16 @@ public class Injector {
 	 *
 	 * @param <T>
 	 * @param clazz
-	 * @param namedAnnotation
-	 * @param qualifier
+	 * @param qualifiers
 	 * @return T
-	 * @throws InvocationException, IllegalArgumentException
+	 * @throws InvocationException
+	 * @throws IllegalArgumentException
 	 */
-	public <T> T inject(final Class<T> clazz, final Named namedAnnotation, final Annotation qualifier) throws InvocationException, IllegalArgumentException {
+	public <T> T inject(final Class<T> clazz, final Annotation... qualifiers) throws InvocationException, IllegalArgumentException {
 		T instance = null;
 
 		try {
-			instance = this.instanceOf(clazz, namedAnnotation, qualifier);
+			instance = this.instanceOf(clazz, qualifiers);
 		} catch (InvocationException | IllegalArgumentException e) {
 			LOGGER.error(e.getMessage(), e);
 			throw e;
@@ -69,70 +71,61 @@ public class Injector {
 
 	/**
 	 *
-	 * @param clazz
-	 * @return T
-	 * @throws IllegalArgumentException
-	 * @throws InvocationException
-	 */
-	public <T> T inject(final Class<T> clazz) throws InvocationException, IllegalArgumentException {
-		return this.inject(clazz, null, null);
-	}
-
-	/**
-	 *
-	 * @param <T>
-	 * @param clazz
-	 * @param namedAnnotation
-	 * @return T
-	 * @throws IllegalArgumentException
-	 * @throws InvocationException
-	 */
-	public <T> T inject(final Class<T> clazz, final Named namedAnnotation) throws InvocationException, IllegalArgumentException {
-		return this.inject(clazz, namedAnnotation, null);
-	}
-
-	/**
-	 *
-	 * @param <T>
-	 * @param clazz
-	 * @param qualifier
-	 * @return T
-	 * @throws IllegalArgumentException
-	 * @throws InvocationException
-	 */
-	public <T> T inject(final Class<T> clazz, final Annotation qualifier) throws InvocationException, IllegalArgumentException {
-		return this.inject(clazz, null, qualifier);
-	}
-
-	/**
-	 *
-	 * @param impl
-	 * @param namedAnnotation
-	 * @param qualifier
+	 * @param beanClass
+	 * @param qualifiers
 	 * @return boolean
 	 */
-	private boolean isClassHasQualifiers(final Class<?> impl, final Named namedAnnotation, final Annotation qualifier) {
-		boolean goodQualifier = false;
-		boolean goodName = false;
+	private boolean hasQualifiers(final Class<?> beanClass, final List<Annotation> qualifiers) {
+		final List<Annotation> beanQualifiers = Arrays.asList(beanClass.getDeclaredAnnotations()).stream().filter(a -> this.isQualifier(a)).collect(Collectors.toList());
 
-		if (qualifier != null) {
-			goodQualifier = impl.getDeclaredAnnotation(qualifier.annotationType()) != null;
-		}
-		if (namedAnnotation != null) {
-			goodName = impl.getDeclaredAnnotation(Named.class) != null && namedAnnotation.value().equals(impl.getDeclaredAnnotation(Named.class).value());
+		if (beanQualifiers.size() != qualifiers.size()) {
+			return false;
 		}
 
-		if (qualifier != null && namedAnnotation != null) {
-			return goodQualifier && goodName;
-		}
-		if (qualifier != null) {
-			return goodQualifier;
-		}
-		if (namedAnnotation != null) {
-			return goodName;
+		final var sortedBeanQualifiers = beanQualifiers.stream().map(a -> a.annotationType()).collect(Collectors.toList());
+		final var sortedQualifiers = qualifiers.stream().map(a -> a.annotationType()).collect(Collectors.toList());
+
+		for(final var annotation : sortedBeanQualifiers) {
+			if (!sortedQualifiers.contains(annotation)) {
+				return false;
+			}
 		}
 
-		return namedAnnotation == null && qualifier == null;
+		final var namedBeanQualifiers = beanQualifiers.stream().filter(a -> a.annotationType() == Named.class).map(a -> (Named)a).collect(Collectors.toList());
+		final var namedQualifiers = qualifiers.stream().filter(a -> a.annotationType() == Named.class).map(a -> (Named)a).collect(Collectors.toList());
+
+		if ((namedBeanQualifiers.size() > 1 || namedQualifiers.size() > 1) && namedBeanQualifiers.size() != namedQualifiers.size()) {
+			return false;
+		}
+
+		if (!namedBeanQualifiers.isEmpty() && !namedQualifiers.isEmpty() && !namedBeanQualifiers.get(0).value().equals(namedQualifiers.get(0).value())) {
+			return false;
+		}
+
+		return true;
+		/*
+		// FIXME get all class qualifiers and compare the list to requested qualifiers
+		final boolean difference = false;
+
+			qualifiers.forEach(a -> {
+				Annotation beanAnnotation = beanClass.getDeclaredAnnotation(a.annotationType());
+
+				if (beanAnnotation != null) {
+					if (a.annotationType() == Named.class) {
+						String qualifierName = ((Named)a).value();
+						String beanQualifierName = ((Named)beanAnnotation).value();
+
+						if (!qualifierName.equals(beanQualifierName)) {
+							difference = true;
+						}
+					}
+				} else {
+					difference = true;
+				}
+			});
+
+		return !difference;
+		 */
 	}
 
 	/**
@@ -147,7 +140,7 @@ public class Injector {
 		Class<? extends T> foundImplementation = null;
 
 		for(final var impl : implementations) {
-			if (Arrays.asList(impl.getInterfaces()).contains(interfaceClass) && impl.getDeclaredAnnotation(Default.class) != null) {
+			if (impl.getDeclaredAnnotation(Default.class) != null) {
 				if (foundImplementation != null) {
 					throw new IllegalArgumentException(String.format("Ambiguous dependencies for type %s with qualifiers @Default", interfaceClass.getName()));
 				}
@@ -163,25 +156,23 @@ public class Injector {
 	 * @param <T>
 	 * @param interfaceClass
 	 * @param implementations
-	 * @param namedAnnotation
-	 * @param qualifier
-	 * @return Class<? extends T>
+	 * @param qualifiers
+	 * @return T
 	 * @throws IllegalArgumentException
 	 */
-	private <T> Class<? extends T> getByQualifier(final Class<T> interfaceClass, final Set<Class<? extends T>> implementations, final Named namedAnnotation, final Annotation qualifier) throws IllegalArgumentException {
+	private <T> Class<? extends T> getByQualifiers(final Class<T> interfaceClass, final Set<Class<? extends T>> implementations, final List<Annotation> qualifiers) throws IllegalArgumentException {
 		Class<? extends T> foundImplementation = null;
 
 		for(final var impl : implementations) {
-			if (Arrays.asList(impl.getInterfaces()).contains(interfaceClass) && this.isClassHasQualifiers(impl, namedAnnotation, qualifier)) {
+			if (this.hasQualifiers(impl, qualifiers)) {
 				if (foundImplementation != null) {
-					String qualifierStr = "";
-					if (qualifier != null) {
-						qualifierStr += " @" + qualifier.annotationType().getSimpleName();
-					}
-					if (namedAnnotation != null) {
-						qualifierStr += " @" + namedAnnotation.getClass().getSimpleName();
-					}
-					throw new IllegalArgumentException(String.format("Unsatisfied dependencies for type %s with qualifiers%s", interfaceClass.getName(), qualifierStr));
+					final StringBuilder qualifiersStr = new StringBuilder();
+
+					qualifiers.forEach(a -> {
+						qualifiersStr.append(" @").append(a.annotationType().getSimpleName());
+					});
+
+					throw new IllegalArgumentException(String.format("Unsatisfied dependencies for type %s with qualifiers%s", interfaceClass.getName(), qualifiersStr.toString()));
 				}
 				foundImplementation = impl;
 			}
@@ -192,19 +183,21 @@ public class Injector {
 
 	/**
 	 *
+	 * @param <T>
 	 * @param clazz
-	 * @param namedAnnotation
-	 * @param qualifier
+	 * @param qualifiers
 	 * @return T
 	 * @throws InvocationException
 	 * @throws IllegalArgumentException
 	 */
-	private <T> T instanceOf(final Class<T> clazz, final Named namedAnnotation, final Annotation qualifier) throws InvocationException, IllegalArgumentException {
+	private <T> T instanceOf(final Class<T> clazz, final Annotation... qualifiers) throws InvocationException, IllegalArgumentException {
 		T instance = null;
-		final boolean useQualifiers = namedAnnotation != null || qualifier != null;
+		final List<Annotation> qualifierList = qualifiers != null ? Arrays.asList(qualifiers) : new ArrayList<>();
 
-		if (qualifier != null && !this.isQualifier(qualifier)) {
-			throw new IllegalArgumentException(String.format("Bad qualifier @%s for class %s", qualifier.annotationType().getSimpleName(), clazz.getName()));
+		for(final Annotation annotation : qualifierList) {
+			if (!this.isQualifier(annotation)) {
+				throw new IllegalArgumentException(String.format("Bad qualifier @%s for class %s", annotation.annotationType().getSimpleName(), clazz.getName()));
+			}
 		}
 
 		if (clazz != null) {
@@ -220,13 +213,13 @@ public class Injector {
 				foundImplementation = implementations.stream().findFirst().get();
 			}
 
-			if (foundImplementation != null && useQualifiers && !this.isClassHasQualifiers(foundImplementation, namedAnnotation, qualifier)) {
+			if (foundImplementation != null && !qualifierList.isEmpty() && !this.hasQualifiers(foundImplementation, qualifierList)) {
 				foundImplementation = null;
 			}
 
 			if (implementations.size() > 1) {
-				if (useQualifiers) {
-					foundImplementation = this.getByQualifier(clazz, implementations, namedAnnotation, qualifier);
+				if (!qualifierList.isEmpty()) {
+					foundImplementation = this.getByQualifiers(clazz, implementations, qualifierList);
 				} else {
 					foundImplementation = this.getDefault(clazz, implementations);
 				}
@@ -254,15 +247,16 @@ public class Injector {
 	/**
 	 *
 	 * @param field
-	 * @return Annotation
+	 * @return List<Annotation>
 	 */
-	private Annotation getQualifier(final Field field) {
+	private List<Annotation> getQualifiers(final Field field) {
+		final List<Annotation> qualifiers = new ArrayList<>();
 		for(final Annotation annotation : field.getDeclaredAnnotations()) {
-			if (this.isQualifier(annotation) && annotation.annotationType() != Named.class) {
-				return annotation;
+			if (this.isQualifier(annotation)) {
+				qualifiers.add(annotation);
 			}
 		}
-		return null;
+		return qualifiers;
 	}
 
 	/**
@@ -286,7 +280,7 @@ public class Injector {
 					LOGGER.error("Field {}.{} is not accessible", bean.getClass().getName(), field.getName());
 				}
 
-				final Object value = this.instanceOf(field.getType(), field.getDeclaredAnnotation(Named.class), this.getQualifier(field));
+				final Object value = this.instanceOf(field.getType(), this.getQualifiers(field).toArray(new Annotation[0]));
 
 				try {
 					LOGGER.debug("Setting {}.{} with value {}", bean.getClass().getName(), field.getName(), value != null ? value.getClass().getName() : null);
