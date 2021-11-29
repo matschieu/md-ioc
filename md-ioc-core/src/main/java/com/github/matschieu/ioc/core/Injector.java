@@ -94,7 +94,7 @@ public class Injector {
 		final var namedBeanQualifiers = beanQualifiers.stream().filter(a -> a.annotationType() == Named.class).map(a -> (Named)a).collect(Collectors.toList());
 		final var namedQualifiers = qualifiers.stream().filter(a -> a.annotationType() == Named.class).map(a -> (Named)a).collect(Collectors.toList());
 
-		if ((namedBeanQualifiers.size() > 1 || namedQualifiers.size() > 1) && namedBeanQualifiers.size() != namedQualifiers.size()) {
+		if (namedBeanQualifiers.size() > 1 || namedQualifiers.size() > 1 || namedBeanQualifiers.size() != namedQualifiers.size()) {
 			return false;
 		}
 
@@ -103,52 +103,6 @@ public class Injector {
 		}
 
 		return true;
-		/*
-		// FIXME get all class qualifiers and compare the list to requested qualifiers
-		final boolean difference = false;
-
-			qualifiers.forEach(a -> {
-				Annotation beanAnnotation = beanClass.getDeclaredAnnotation(a.annotationType());
-
-				if (beanAnnotation != null) {
-					if (a.annotationType() == Named.class) {
-						String qualifierName = ((Named)a).value();
-						String beanQualifierName = ((Named)beanAnnotation).value();
-
-						if (!qualifierName.equals(beanQualifierName)) {
-							difference = true;
-						}
-					}
-				} else {
-					difference = true;
-				}
-			});
-
-		return !difference;
-		 */
-	}
-
-	/**
-	 *
-	 * @param <T>
-	 * @param interfaceClass
-	 * @param implementations
-	 * @return Class<? extends T>
-	 * @throws IllegalArgumentException
-	 */
-	private <T> Class<? extends T> getDefault(final Class<T> interfaceClass, final Set<Class<? extends T>> implementations) throws IllegalArgumentException {
-		Class<? extends T> foundImplementation = null;
-
-		for(final var impl : implementations) {
-			if (impl.getDeclaredAnnotation(Default.class) != null) {
-				if (foundImplementation != null) {
-					throw new IllegalArgumentException(String.format("Ambiguous dependencies for type %s with qualifiers @Default", interfaceClass.getName()));
-				}
-				foundImplementation = impl;
-			}
-		}
-
-		return foundImplementation;
 	}
 
 	/**
@@ -172,7 +126,8 @@ public class Injector {
 						qualifiersStr.append(" @").append(a.annotationType().getSimpleName());
 					});
 
-					throw new IllegalArgumentException(String.format("Unsatisfied dependencies for type %s with qualifiers%s", interfaceClass.getName(), qualifiersStr.toString()));
+					throw new IllegalArgumentException(String.format("Ambiguous dependencies for type %s with qualifiers%s", interfaceClass.getName(), qualifiersStr.toString()));
+					//throw new IllegalArgumentException(String.format("Unsatisfied dependencies for type %s with qualifiers%s", interfaceClass.getName(), qualifiersStr.toString()));
 				}
 				foundImplementation = impl;
 			}
@@ -192,9 +147,8 @@ public class Injector {
 	 */
 	private <T> T instanceOf(final Class<T> clazz, final Annotation... qualifiers) throws InvocationException, IllegalArgumentException {
 		T instance = null;
-		final List<Annotation> qualifierList = qualifiers != null ? Arrays.asList(qualifiers) : new ArrayList<>();
 
-		for(final Annotation annotation : qualifierList) {
+		for(final Annotation annotation : qualifiers) {
 			if (!this.isQualifier(annotation)) {
 				throw new IllegalArgumentException(String.format("Bad qualifier @%s for class %s", annotation.annotationType().getSimpleName(), clazz.getName()));
 			}
@@ -204,6 +158,7 @@ public class Injector {
 			@SuppressWarnings("unchecked")
 			final Set<Class<? extends T>> implementations = this.container.getApplicationScope().entrySet().stream().filter(e -> e.getValue().equals(clazz)).map(e -> (Class<? extends T>)e.getKey()).collect(Collectors.toSet());
 			Class<? extends T> foundImplementation = null;
+			final List<Annotation> qualifierList = qualifiers.length > 0 ? Arrays.asList(qualifiers) : new ArrayList<>();
 
 			if (implementations.size() == 0 && !clazz.isInterface()) {
 				foundImplementation = clazz;
@@ -218,11 +173,11 @@ public class Injector {
 			}
 
 			if (implementations.size() > 1) {
-				if (!qualifierList.isEmpty()) {
-					foundImplementation = this.getByQualifiers(clazz, implementations, qualifierList);
-				} else {
-					foundImplementation = this.getDefault(clazz, implementations);
+				if (qualifierList.isEmpty()) {
+					qualifierList.add(() -> Default.class);
 				}
+
+				foundImplementation = this.getByQualifiers(clazz, implementations, qualifierList);
 			}
 
 			if (foundImplementation != null) {
