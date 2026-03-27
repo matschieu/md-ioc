@@ -1,8 +1,8 @@
 package com.github.matschieu.ioc.core.beans;
 
-import javax.annotation.PostConstruct;
-import javax.enterprise.inject.Default;
-import javax.inject.Inject;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.inject.Default;
+import jakarta.inject.Inject;
 
 /**
  *

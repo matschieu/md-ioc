@@ -1,6 +1,6 @@
 package com.github.matschieu.ioc.core.beans;
 
-import javax.enterprise.inject.Default;
+import jakarta.enterprise.inject.Default;
 
 /**
  *

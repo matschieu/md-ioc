@@ -6,14 +6,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.inject.Singleton;
-
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.matschieu.ioc.core.exceptions.InvocationException;
+
+import jakarta.inject.Singleton;
 
 /**
  *

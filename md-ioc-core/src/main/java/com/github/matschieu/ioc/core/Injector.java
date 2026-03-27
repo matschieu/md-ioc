@@ -8,17 +8,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.enterprise.inject.Default;
-import javax.inject.Inject;
-import javax.inject.Named;
-import javax.inject.Qualifier;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.matschieu.ioc.core.exceptions.DefinitionException;
 import com.github.matschieu.ioc.core.exceptions.IllegalArgumentException;
 import com.github.matschieu.ioc.core.exceptions.InvocationException;
+
+import jakarta.enterprise.inject.Default;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.inject.Qualifier;
 
 /**
  *

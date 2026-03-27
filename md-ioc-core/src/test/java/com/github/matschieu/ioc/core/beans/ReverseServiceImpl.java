@@ -1,6 +1,6 @@
 package com.github.matschieu.ioc.core.beans;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 
 /**
  *

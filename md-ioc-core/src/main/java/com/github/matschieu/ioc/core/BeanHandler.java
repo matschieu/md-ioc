@@ -5,13 +5,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import javax.annotation.PostConstruct;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.matschieu.ioc.core.exceptions.DefinitionException;
 import com.github.matschieu.ioc.core.exceptions.InvocationException;
+
+import jakarta.annotation.PostConstruct;
 
 /**
  *
